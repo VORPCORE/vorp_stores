@@ -257,7 +257,7 @@ end)
 
 -- * CALLBACKS * --
 Core.Callback.Register('vorp_stores:callback:getShopStock', function(source, cb, args)
-    local items = Config.SellItems[args]
+    local items = Config.SellItems[args] or {}
     local ItemsFound = false
     local PlayerItems = {}
     local userInv = exports.vorp_inventory:getUserInventoryItems(source)
