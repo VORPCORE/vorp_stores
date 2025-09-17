@@ -349,22 +349,27 @@ end)
 
 -- * LOGIC FOR RANDOM PRICES * --
 AddEventHandler('onResourceStart', function(resourceName)
-    if (GetCurrentResourceName() ~= resourceName) then
-        return
-    end
+    if (GetCurrentResourceName() ~= resourceName) then return end
     for storeId, storeConfig in pairs(Config.Stores) do
         if storeConfig.RandomPrices then
             for index, storeItem in ipairs(Config.SellItems[storeId] or {}) do
-                Config.SellItems[storeId][index].sellprice = storeItem.randomprice
+                local rp = tonumber(storeItem.randomprice)
+                if rp ~= nil then
+                    Config.SellItems[storeId][index].sellprice = rp
+                end
             end
             for index, storeItem in ipairs(Config.BuyItems[storeId] or {}) do
-                Config.BuyItems[storeId][index].buyprice = storeItem.randomprice
+                local rp = tonumber(storeItem.randomprice)
+                if rp ~= nil then
+                    Config.BuyItems[storeId][index].buyprice = rp
+                end
             end
         end
+
         if storeConfig.useRandomLocation then
             local randomLocation = math.random(1, #storeConfig.possibleLocations.OpenMenu)
             Config.Stores[storeId].Blip.Pos = storeConfig.possibleLocations.OpenMenu[randomLocation]
-            Config.Stores[storeId].Npc.Pos = storeConfig.possibleLocations.Npcs[randomLocation]
+            Config.Stores[storeId].Npc.Pos  = storeConfig.possibleLocations.Npcs[randomLocation]
         end
     end
 end)
@@ -387,3 +392,4 @@ AddEventHandler('playerDropped', function(reason)
         end
     end
 end)
+
