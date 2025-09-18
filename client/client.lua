@@ -413,7 +413,7 @@ function OpenSellMenu(storeId, category)
     end
 
     if not next(menuElements) then
-        print("No items found in this category for you to sell ")
+        Core.NotifyObjective(T.notSelectedItemToSell, 5000)
         OpenCategory(storeId)
         return
     end
@@ -704,4 +704,3 @@ AddEventHandler('onResourceStop', function(resourceName)
         end
     end
 end)
-
