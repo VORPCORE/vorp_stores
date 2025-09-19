@@ -362,25 +362,23 @@ AddEventHandler('onResourceStart', function(resourceName)
                 local rp = tonumber(storeItem.randomprice)
                 if rp ~= nil then
                     Config.SellItems[storeId][index].sellprice = rp
+                else
+                    local itemName = storeItem.name or ("item at index ".. index)
+                    print(("Missing randomprice for SELL item '%s' in store '%s'"):format(itemName, storeId))
                 end
             end
             for index, storeItem in ipairs(Config.BuyItems[storeId] or {}) do
                 local rp = tonumber(storeItem.randomprice)
                 if rp ~= nil then
                     Config.BuyItems[storeId][index].buyprice = rp
+                else
+                    local itemName = storeItem.name or ("item at index ".. index)
+                    print(("Missing randomprice for BUY item '%s' in store '%s'"):format(itemName, storeId))
                 end
             end
         end
-
-        if storeConfig.useRandomLocation then
-            local randomLocation = math.random(1, #storeConfig.possibleLocations.OpenMenu)
-            Config.Stores[storeId].Blip.Pos = storeConfig.possibleLocations.OpenMenu[randomLocation]
-            Config.Stores[storeId].Npc.Pos  = storeConfig.possibleLocations.Npcs[randomLocation]
-        end
     end
 end)
-
-
 
 RegisterServerEvent('vorp_stores:GetRefreshedPrices', function()
     local _source = source
@@ -398,5 +396,6 @@ AddEventHandler('playerDropped', function(reason)
         end
     end
 end)
+
 
 
