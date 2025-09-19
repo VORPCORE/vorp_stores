@@ -368,11 +368,6 @@ function OpenSellMenu(storeId, category)
                                     print(("WARNING: Item '%s' in store '%s' is missing sellprice!")
                                         :format(storeItem.itemName or "unknown", storeId or "unknown"))
 
-                                    Core.NotifyObjective(source, 
-                                        ("The price for %s is not set. Please notify the administrator."):format(storeItem.itemName or "this item"), 
-                                        4000
-                                    )
-
                                     return
                                 end
 
@@ -406,7 +401,6 @@ function OpenSellMenu(storeId, category)
                             print(("WARNING: Item '%s' in store '%s' is missing sellprice!")
                                 :format(storeItem.itemName or "unknown", storeId or "unknown"))
 
-                            TriggerEvent("vorp:TipBottom", "The price for this item is not set. Please notify the administrator!", 4000)
                             sellprice = 0
                         end
 
@@ -726,5 +720,6 @@ AddEventHandler('onResourceStop', function(resourceName)
         end
     end
 end)
+
 
 
