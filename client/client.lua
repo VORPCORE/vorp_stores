@@ -362,7 +362,16 @@ function OpenSellMenu(storeId, category)
                     if shopStocks then
                         for _, items in pairs(shopStocks) do
                             if items.itemName == storeItem.itemName and items.type == "sell" then
-                                local sellprice = storeItem.sellprice or 0
+                                local sellprice = storeItem.sellprice
+
+                                if not sellprice then
+                                    print(("WARNING: Item '%s' in store '%s' is missing sellprice!")
+                                        :format(storeItem.itemName or "unknown", storeId or "unknown"))
+
+                                    TriggerEvent("vorp:TipBottom", "The price for this item is not set. Please notify the administrator!", 4000)
+                                    sellprice = 0
+                                end
+
                                 if Config.AllowSellItemsWithDecay and Config.SellItemBasedOnPercentage and value.isDegradable then
                                     -- adjust price based on percentage, theres a problem here because decay is counting so price might be less if the percentage has been changed
                                     sellprice = storeItem.sellprice * 0 * ((100 - value.percentage) / 100)
@@ -387,7 +396,16 @@ function OpenSellMenu(storeId, category)
                     end
 
                     if not itemFound then
-                        local sellprice = storeItem.sellprice or 0
+                        local sellprice = storeItem.sellprice
+
+                        if not sellprice then
+                            print(("WARNING: Item '%s' in store '%s' is missing sellprice!")
+                                :format(storeItem.itemName or "unknown", storeId or "unknown"))
+
+                            TriggerEvent("vorp:TipBottom", "The price for this item is not set. Please notify the administrator!", 4000)
+                            sellprice = 0
+                        end
+
                         if Config.AllowSellItemsWithDecay and Config.SellItemBasedOnPercentage and value.isDegradable then
                             -- adjust price based on percentage, theres a problem here because decay is counting so price might be less if the percentage has been changed
                             sellprice = storeItem.sellprice * 0 * ((100 - value.percentage) / 100)
@@ -704,3 +722,4 @@ AddEventHandler('onResourceStop', function(resourceName)
         end
     end
 end)
+
