@@ -257,7 +257,13 @@ end)
 
 -- * CALLBACKS * --
 Core.Callback.Register('vorp_stores:callback:getShopStock', function(source, cb, args)
-    local items = Config.SellItems[args] or {}
+    local items = Config.SellItems[args]
+    if not items then
+        print(("ERROR: No SellItems config found for store '%s'"):format(args or "unknown"))
+        cb({})
+        return
+    end
+
     local ItemsFound = false
     local PlayerItems = {}
     local userInv = exports.vorp_inventory:getUserInventoryItems(source)
@@ -392,4 +398,5 @@ AddEventHandler('playerDropped', function(reason)
         end
     end
 end)
+
 
