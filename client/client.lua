@@ -533,8 +533,8 @@ function OpenBuyMenu(storeId, category)
             if storeItem.currencyType == "cash" then
                 ctp = "$"
             end
-            if not storeItem?.byprice then
-               return print(("WARNING: Item '%s' in store '%s' is missing sellprice!"):format(storeItem.itemLabel or "unknown", storeId or "unknown"))
+            if not storeItem?.buyprice then
+               return print(("WARNING: Item '%s' in store '%s' is missing buyprice!"):format(storeItem.itemLabel or "unknown", storeId or "unknown"))
             end
             if shopStocks then
                 for _, items in pairs(shopStocks) do
@@ -709,6 +709,7 @@ AddEventHandler('onResourceStop', function(resourceName)
         end
     end
 end)
+
 
 
 
