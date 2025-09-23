@@ -12,6 +12,60 @@ local labelStyle <const> = "<span style='opacity:0.6;'>%s</span>"
 local imgPath1 <const> = "<img style='margin-top: 10px;margin-bottom: 10px; margin-left: -10px;'src='nui://vorp_stores/images/%s.png'>" -- ! add image to medicalman
 local divider <const> = imgPath1:format("divider_line")
 local T <const> = TranslationStores.Langs[Lang]
+local WeaponsMeta = {}
+local ItemLabelLUT = {}
+
+local function LoadWeaponsMeta()
+    if next(WeaponsMeta) then return end
+    local code = LoadResourceFile("vorp_inventory", "config/weapons.lua")
+    if not code then return end
+    local env = {}
+    setmetatable(env, { __index = _G })
+    local chunk = load(code, "@weapons.lua", "t", env)
+    if not chunk then return end
+    chunk()
+    if env.SharedData and env.SharedData.Weapons then
+        WeaponsMeta = env.SharedData.Weapons
+    end
+end
+
+local function GetItemDisplay(itemName)
+    LoadWeaponsMeta()
+    local w = WeaponsMeta[itemName]
+    if w then
+        return (w.Name or itemName), (w.Desc or "")
+    end
+
+    return itemName, ""
+end
+
+-- =========================
+-- ====== LABEL LUT ========
+-- =========================
+local function RefreshLabelLUT()
+    -- take the signature/label from the same LUT as the crafting
+    Core.Callback.TriggerAsync("vorp_crafting:GetLabelLUT", function(lut)
+        ItemLabelLUT = lut or {}
+    end)
+end
+
+local function GetLabel(name)
+    local k = (type(name)=="string" and name:lower()) or name
+    local row = ItemLabelLUT[k]
+    return (row and row.label) or name
+end
+
+local function PriceToNumber(v)
+    -- the server already fixes the ranges on restart (RandomPrices), but
+    -- if suddenly {min,max} arrives — let's play it safe
+    if type(v) == "number" then return v end
+    if type(v) == "table" and v[1] and v[2] then
+        local a = tonumber(v[1]) or 0
+        local b = tonumber(v[2]) or a
+        return math.random(math.floor(a), math.floor(b))
+    end
+    return 0
+end
 
 local function CheckJobs(store)
     local data = Config.Stores[store]
@@ -113,27 +167,6 @@ RegisterNetEvent("vorp_stores:Server:ChangeStoreStatus", function(storeId, statu
     Config.Stores[storeId].isDeactivated = status
 end)
 
--- use this event client side to open a store from your scripts make sure locations match for security checks
-AddEventHandler("vorp_stores:Client:OpenShop", function(storeId)
-    local storeConfig = Config.Stores[storeId]
-    if not storeConfig then
-        return print("Store not found in vorp stores configs")
-    end
-
-    local distance = GetPlayerDistanceFromCoords(storeConfig.Blip.Pos)
-    if distance <= storeConfig.distanceOpenStore then
-        local canOpen = Core.Callback.TriggerAwait("vorp_stores:callback:canOpenStore", storeId)
-        if not canOpen then
-            return Core.NotifyObjective(T.StoreInUse, 5000)
-        end
-        __StoreInUse = storeId
-        OpenCategory(storeId)
-    else
-        print("this event was fired but player is not near the location to open store")
-    end
-end)
-
-
 local function storeOpen(storeConfig, storeId)
     local distance = GetPlayerDistanceFromCoords(storeConfig.Blip.Pos)
 
@@ -180,7 +213,6 @@ local function storeOpen(storeConfig, storeId)
     return inDistance
 end
 
-
 local function IsStoreClosed(value)
     local hour = GetClockHours()
 
@@ -199,7 +231,6 @@ local function IsStoreClosed(value)
     end
 end
 
-
 local function closeAll()
     MenuData.CloseAll()
     isInMenu = false
@@ -211,7 +242,9 @@ local function closeAll()
     end, __StoreInUse)
 end
 
--- * MAIN THREAD * --
+-- ===========================
+-- ====== MAIN THREAD ========
+-- ===========================
 CreateThread(function()
     repeat Wait(2000) until LocalPlayer.state.IsInSession
     setUpPrompt()
@@ -336,10 +369,14 @@ end
 function OpenSellMenu(storeId, category)
     MenuData.CloseAll()
     isInMenu = true
+    -- refresh labels LUT from server (once per open)
+    local lut = Core.Callback.TriggerAwait("vorp_stores:GetLabelLUT")
+    if type(lut)=="table" then ItemLabelLUT = lut end
+
     local menuElements = {}
-    local storeConfig = Config.Stores[storeId]
-    local SellTable = {}
-    local ctp = ""
+    local storeConfig  = Config.Stores[storeId]
+    local SellTable    = {}
+    local ctp          = ""
 
     local result = Core.Callback.TriggerAwait('vorp_stores:callback:getShopStock', storeId)
     if not result then
@@ -350,69 +387,56 @@ function OpenSellMenu(storeId, category)
     local shopStocks  = result.shopStocks
     local playerItems = result.ItemsFound
 
-    for _, storeItem in pairs(Config.SellItems[storeId]) do
-        local itemFound = false
-        for itemName, value in pairs(playerItems) do
-            if itemName == storeItem.itemName then
-                if storeItem.category == category then
-                    if storeItem.currencyType == "cash" then
-                        ctp = "$"
-                    end
-                    if not storeItem?.sellprice then
-                       return print(("WARNING: Item '%s' in store '%s' is missing sellprice!"):format(storeItem.itemName or "unknown", storeId or "unknown"))
-                    end
-                    if shopStocks then
-                        for _, items in pairs(shopStocks) do
-                            if items.itemName == storeItem.itemName and items.type == "sell" then
-                                local sellprice = storeItem.sellprice
-                                if Config.AllowSellItemsWithDecay and Config.SellItemBasedOnPercentage and value.isDegradable then
-                                    -- adjust price based on percentage, theres a problem here because decay is counting so price might be less if the percentage has been changed
-                                    sellprice = storeItem.sellprice * 0 * ((100 - value.percentage) / 100)
-                                end
+    for _, it in ipairs(storeConfig.items or {}) do
+        if it.category == category and it.sellprice ~= false then
+            local itemName  = it.itemName
+            local basePrice = PriceToNumber(it.sellprice) or 0
+            if not basePrice then goto continue_sell_loop end
 
-                                itemFound = true
-                                menuElements[#menuElements + 1] = {
-                                    label = imgPath:format("left", storeItem.itemName) .. storeItem.itemLabel .. " " .. T.forSale .. " <br> " .. items.amount .. " " .. T.avaliable,
-                                    action = "sell",
-                                    value = 0,
-                                    min = 0,
-                                    max = value.count,
-                                    type = "slider",
-                                    info = storeItem,
-                                    item = value,
-                                    index = storeItem.itemName,
-                                    desc = storeItem.desc .. "<br><br>you have x" .. value.count .. "<br><br><br><br><br>" .. divider .. "<br>" .. font .. "<span style='font-family:crock; float:left; font-size: 22px;'>" .. T.Price .. "  </span>" .. font .. "<span style='font-family:crock;float:right; font-size: 22px;'>$" .. string.format("%.2f", sellprice) .. "</span><br>" .. divider .. "<br><br>"
+            local label    = GetLabel(itemName) or itemName
+            local currency = it.currencyType or "cash"
+            if currency == "cash" then ctp = "$" end
 
-                                }
-                            end
+            local pItem = playerItems[itemName]
+            if pItem then
+                local maxAvail = pItem.count or 0
+                if shopStocks then
+                    for _, st in ipairs(shopStocks) do
+                        if st.itemName == itemName and st.type == "sell" then
+                            maxAvail = math.min(maxAvail, st.amount or 0)
+                            break
                         end
                     end
+                end
 
-                    if not itemFound then
-                        local sellprice = storeItem.sellprice
-
-                        if Config.AllowSellItemsWithDecay and Config.SellItemBasedOnPercentage and value.isDegradable then
-                            -- adjust price based on percentage, theres a problem here because decay is counting so price might be less if the percentage has been changed
-                            sellprice = storeItem.sellprice * 0 * ((100 - value.percentage) / 100)
-                        end
-                        -- if not found in the stock allow to sell only what player holds
-                        menuElements[#menuElements + 1] = {
-
-                            label = imgPath:format("left", storeItem.itemName) .. storeItem.itemLabel .. " " .. T.forSale .. " <br> " .. value.count .. " " .. T.avaliable,
-                            action = "sell",
-                            value = 0,
-                            min = 0,
-                            max = value.count,
-                            type = "slider",
-                            info = storeItem,
-                            item = value,
-                            index = storeItem.itemName,
-                            desc = storeItem.desc .. "<br><br>you have x" .. value.count .. "<br><br><br><br><br>" .. divider .. "<br>" .. font .. "<span style='font-family:crock; float:left; font-size: 22px;'>" .. T.Price .. "  </span>" .. font .. "<span style='font-family:crock;float:right; font-size: 22px;'>$" .. string.format("%.2f", sellprice) .. "</span><br>" .. divider .. "<br><br>"
-                        }
+                if maxAvail > 0 then
+                    local priceToShow = basePrice
+                    if Config.AllowSellItemsWithDecay and Config.SellItemBasedOnPercentage and pItem.isDegradable then
+                        priceToShow = basePrice * (pItem.percentage / 100)
                     end
+
+                    menuElements[#menuElements + 1] = {
+                        label = imgPath:format("left", itemName) ..
+                                label .. " " .. T.forSale .. " <br> " ..
+                                maxAvail .. " " .. T.avaliable,
+                        action = "sell",
+                        value  = 0,
+                        min    = 0,
+                        max    = maxAvail,
+                        type   = "slider",
+                        info   = { itemName = itemName, currencyType = currency, sellprice = basePrice, weapon = it.weapon },
+                        item   = pItem,
+                        index  = itemName,
+                        desc   = "<br><br>" .. divider ..
+                                 "<br>" .. font ..
+                                 "<span style='font-family:crock; float:left; font-size: 22px;'>" .. T.Price .. " </span>" ..
+                                 font .. "<span style='font-family:crock;float:right; font-size: 22px;'>" .. ctp ..
+                                 string.format("%.2f", priceToShow) .. "</span><br>" .. divider .. "<br><br>"
+                    }
                 end
             end
         end
+        ::continue_sell_loop::
     end
 
     if not next(menuElements) then
@@ -425,99 +449,120 @@ function OpenSellMenu(storeId, category)
         label = T.totalToReceive .. " <br> " .. ctp .. 0,
         value = "sell",
         info  = "finish",
-        desc  = T.pressEnterToSell .. "<br><br><br><br><br>" .. divider .. "<br>" .. font .. "<span style='font-family:crock; float:left; font-size: 22px;'>" .. T.Total .. " </span>" .. font .. "<span style='font-family:crock;float:right; font-size: 22px;'>$" .. 0.00 .. "</span><br>" .. divider .. "<br><br>"
+        desc  = T.pressEnterToSell ..
+                "<br><br><br><br><br>" .. divider .. "<br>" ..
+                font .. "<span style='font-family:crock; float:left; font-size: 22px;'>" .. T.Total .. " </span>" ..
+                font .. "<span style='font-family:crock;float:right; font-size: 22px;'>" .. ctp .. "0.00</span><br>" ..
+                divider .. "<br><br>"
     }
 
     MenuData.Open('default', GetCurrentResourceName(), 'OpenSellMenu' .. storeId .. category,
-        {
-            title = storeConfig.storeName,
-            subtext = subMenuStyle:format(T.sellmenu),
-            align = Config.Align,
-            elements = menuElements,
-            lastmenu = "OpenSubMenu",
-            itemHeight = "4vh"
+    {
+        title      = storeConfig.storeName,
+        subtext    = subMenuStyle:format(T.sellmenu),
+        align      = Config.Align,
+        elements   = menuElements,
+        lastmenu   = "OpenSubMenu",
+        itemHeight = "4vh"
+    },
+    function(data, menu)
+        if (data.current == "backup") then
+            return _G[data.trigger](storeId, category)
+        end
 
-        },
-        function(data, menu)
-            if (data.current == "backup") then
-                return _G[data.trigger](storeId, category)
+        if data.current.action == "sell" then
+            local info     = data.current.info
+            local pItem    = data.current.item
+            local qty      = tonumber(data.current.value) or 0
+            local unit     = info.sellprice
+            local itemName = info.itemName
+            local label    = GetLabel(itemName) or itemName
+            local total    = unit * qty
+
+            if Config.AllowSellItemsWithDecay and Config.SellItemBasedOnPercentage and pItem.isDegradable then
+                total = unit * qty * (pItem.percentage / 100)
             end
 
-            if data.current.action == "sell" then
-                local ItemName = data.current.info.itemName
-                local ItemLabel = data.current.info.itemLabel
-                local currencyType = data.current.info.currencyType
-                local sellPrice = data.current.info.sellprice * data.current.value
+            if not SellTable[itemName] then
+                SellTable[itemName] = {
+                    label    = label,
+                    currency = info.currencyType,
+                    price    = unit,
+                    quantity = qty,
+                    weapon   = info.weapon,
+                    total    = total,
+                    item     = pItem
+                }
+            end
 
-                if Config.AllowSellItemsWithDecay and Config.SellItemBasedOnPercentage and data.current.item.isDegradable then
-                    sellPrice = data.current.info.sellprice * data.current.value * (data.current.item.percentage / 100)
-                end
+            SellTable[itemName].quantity = qty
+            SellTable[itemName].total    = total
 
-                if not SellTable[ItemName] then
-                    SellTable[ItemName] = {
-                        label = ItemLabel,
-                        currency = currencyType,
-                        price = data.current.info.sellprice,
-                        quantity = data.current.value,
-                        weapon = data.current.info.weapon,
-                        total = sellPrice,
-                        item = data.current.item
-                    }
-                end
-
-                if SellTable[ItemName] then
-                    SellTable[ItemName].quantity = data.current.value
-                    SellTable[ItemName].total = sellPrice
-                end
-
-                for key, value in pairs(menu.data.elements) do
-                    if value.index == ItemName then
-                        menu.setElement(key, "desc", data.current.info.desc .. "<br><br>you have x" .. data.current.item.count .. "<br><br> " .. T.Price .. "$" .. string.format("%.2f", sellPrice) .. "<br><br><br><br><br>" .. divider .. "<br>" .. font .. "<span style='font-family:crock; float:left; font-size: 22px;'>" .. T.Total .. " </span>" .. font .. "<span style='font-family:crock;float:right; font-size: 22px;'>$" .. string.format("%.2f", sellPrice) .. "</span><br>" .. divider .. "<br><br>")
-                        menu.refresh()
-                        break
+            for key, row in pairs(menu.data.elements) do
+                if row.index == itemName then
+                    local priceToShow = unit
+                    if Config.AllowSellItemsWithDecay and Config.SellItemBasedOnPercentage and pItem.isDegradable then
+                        priceToShow = unit * (pItem.percentage / 100)
                     end
-                end
 
-                for key, value in pairs(menu.data.elements) do
-                    if value.info == "finish" then
-                        local total = 0
-                        for k, v in pairs(SellTable) do
-                            total = total + v.total
-                        end
-                        menu.setElement(key, "label", T.totalToReceive .. " <br> " .. ctp .. total)
-                        menu.setElement(key, "desc", T.pressEnterToSell .. "<br><br><br><br><br>" .. divider .. "<br>" .. font .. "<span style='font-family:crock; float:left; font-size: 22px;'>" .. T.Total .. " </span>" .. font .. "<span style='font-family:crock;float:right; font-size: 22px;'>$" .. string.format("%.2f", total) .. "</span><br>" .. divider .. "<br><br>")
-                        menu.refresh()
-                        break
-                    end
+                    menu.setElement(key, "desc",
+                        "<br>" .. T.Price .. " " .. ctp .. string.format("%.2f", priceToShow) ..
+                        "<br><br><br><br><br>" .. divider .. "<br>" ..
+                        font .. "<span style='font-family:crock; float:left; font-size: 22px;'>" .. T.Total .. " </span>" ..
+                        font .. "<span style='font-family:crock;float:right; font-size: 22px;'>" .. ctp .. string.format("%.2f", total) .. "</span><br>" ..
+                        divider .. "<br><br>"
+                    )
+                    menu.refresh()
+                    break
                 end
             end
 
-            if data.current.value == "sell" then
-                for key, value in pairs(SellTable) do
-                    if value.quantity <= 0 then
-                        SellTable[key] = nil
-                    end
+            for key, row in pairs(menu.data.elements) do
+                if row.info == "finish" then
+                    local sum = 0
+                    for _, v in pairs(SellTable) do sum = sum + (v.total or 0) end
+                    menu.setElement(key, "label", T.totalToReceive .. " <br> " .. ctp .. string.format("%.2f", sum))
+                    menu.setElement(key, "desc",
+                        T.pressEnterToSell .. "<br><br><br><br><br>" .. divider .. "<br>" ..
+                        font .. "<span style='font-family:crock; float:left; font-size: 22px;'>" .. T.Total .. " </span>" ..
+                        font .. "<span style='font-family:crock;float:right; font-size: 22px;'>" .. ctp .. string.format("%.2f", sum) .. "</span><br>" ..
+                        divider .. "<br><br>"
+                    )
+                    menu.refresh()
+                    break
                 end
-
-                if not next(SellTable) then
-                    return Core.NotifyObjective(T.notSelectedItem, 5000)
-                end
-
-                TriggerServerEvent("vorp_stores:Client:sellItems", SellTable, storeId)
-                closeAll()
-                SellTable = {}
             end
-        end, function(data, menu)
+        end
 
-        end)
+        if data.current.value == "sell" then
+            for k, v in pairs(SellTable) do
+                if (v.quantity or 0) <= 0 then
+                    SellTable[k] = nil
+                end
+            end
+            if not next(SellTable) then
+                return Core.NotifyObjective(T.notSelectedItem, 5000)
+            end
+
+            TriggerServerEvent("vorp_stores:Client:sellItems", SellTable, storeId)
+            closeAll()
+            SellTable = {}
+        end
+    end,
+    function(data, menu) end)
 end
 
 function OpenBuyMenu(storeId, category)
     MenuData.CloseAll()
     isInMenu = true
+    -- refresh labels LUT from server (once per open)
+    local lut = Core.Callback.TriggerAwait("vorp_stores:GetLabelLUT")
+    if type(lut)=="table" then ItemLabelLUT = lut end
+
     local menuElements = {}
-    local storeConfig = Config.Stores[storeId]
-    local BuyTable = {}
+    local storeConfig  = Config.Stores[storeId]
+    local BuyTable     = {}
+    local ctp          = ""
 
     local result = Core.Callback.TriggerAwait('vorp_stores:callback:ShopStock', storeId)
     if not result then
@@ -525,52 +570,48 @@ function OpenBuyMenu(storeId, category)
         return
     end
     local shopStocks = result.shopStock
-    local ctp = ""
 
-    for _, storeItem in pairs(Config.BuyItems[storeId]) do
-        local itemFound = false
-        if storeItem.category == category then
-            if storeItem.currencyType == "cash" then
-                ctp = "$"
-            end
-            if not storeItem?.buyprice then
-               return print(("WARNING: Item '%s' in store '%s' is missing buyprice!"):format(storeItem.itemLabel or "unknown", storeId or "unknown"))
-            end
+    for _, it in ipairs(storeConfig.items or {}) do
+        if it.category == category and it.buyprice ~= false then
+            local unit = PriceToNumber(it.buyprice)
+            if not unit then goto continue_buy_loop end
+
+            local itemName = it.itemName
+            local label    = GetLabel(itemName) or itemName
+            local currency = it.currencyType or "cash"
+            if currency == "cash" then ctp = "$" end
+
+            local maxQty   = 100
+            local fromStock = false
+
             if shopStocks then
-                for _, items in pairs(shopStocks) do
-                    if items.itemName == storeItem.itemName and items.type == "buy" then
-                        itemFound = true
-                        menuElements[#menuElements + 1] = {
-
-                            label = imgPath:format("left", storeItem.itemName) .. storeItem.itemLabel .. " <br> " .. labelStyle:format(items.amount .. " " .. T.avaliable),
-                            value = 0,
-                            min = 0,
-                            max = items.amount,
-                            action = "buy",
-                            type = "slider",
-                            info = storeItem,
-                            desc = storeItem.desc .. "<br><br><br><br><br>" .. divider .. "<br>" .. font .. "<span style='font-family:crock; float:left; font-size: 22px;'>" .. T.Price .. " </span>" .. font .. "<span style='font-family:crock;float:right; font-size: 22px;'>$" .. string.format("%.2f", storeItem.buyprice) .. "</span><br>" .. divider .. "<br><br>"
-
-                        }
+                for _, st in ipairs(shopStocks) do
+                    if st.itemName == itemName and st.type == "buy" then
+                        maxQty    = st.amount or 0
+                        fromStock = true
+                        break
                     end
                 end
             end
 
-            if not itemFound then
-                menuElements[#menuElements + 1] = {
-
-                    label = imgPath:format("left", storeItem.itemName) .. storeItem.itemLabel .. " <br> " .. labelStyle:format(T.chooseAmount),
-                    value = 0,
-                    min = 0,
-                    max = 100,
-                    type = "slider",
-                    action = "buy",
-                    info = storeItem,
-                    desc = storeItem.desc .. "<br><br><br><br><br>" .. divider .. "<br>" .. font .. "<span style='font-family:crock; float:left; font-size: 22px;'>" .. T.Price .. " </span>" .. font .. "<span style='font-family:crock;float:right; font-size: 22px;'>$" .. string.format("%.2f", storeItem.buyprice) .. "</span><br>" .. divider .. "<br><br>"
-
-                }
-            end
+            menuElements[#menuElements + 1] = {
+                label  = imgPath:format("left", itemName) ..
+                         label .. " <br> " ..
+                         labelStyle:format(fromStock and (maxQty .. " " .. T.avaliable) or T.chooseAmount),
+                value  = 0,
+                min    = 0,
+                max    = maxQty,
+                action = "buy",
+                type   = "slider",
+                info   = { itemName = itemName, currencyType = currency, buyprice = unit, weapon = it.weapon },
+                index  = itemName,
+                desc   = "<br><br>" .. divider .. "<br>" ..
+                         font .. "<span style='font-family:crock; float:left; font-size: 22px;'>" .. T.Price .. " </span>" ..
+                         font .. "<span style='font-family:crock;float:right; font-size: 22px;'>" .. ctp .. string.format("%.2f", unit) .. "</span><br>" ..
+                         divider .. "<br><br>"
+            }
         end
+        ::continue_buy_loop::
     end
 
     if not next(menuElements) then
@@ -579,68 +620,82 @@ function OpenBuyMenu(storeId, category)
     end
 
     menuElements[#menuElements + 1] = {
-        label = T.totalToPay .. " <br> " .. labelStyle:format(ctp .. 0),
+        label = T.totalToPay .. " <br> " .. labelStyle:format(ctp .. "0"),
         value = "finish",
-        info = "finish",
-        desc = T.pressHereToFinish .. "<br><br>" .. T.CurrentMoney .. LocalPlayer.state.Character.Money .. "<br><br><br><br><br>" .. divider .. "<br>" .. font .. "<span style='font-family:crock; float:left; font-size: 22px;'>" .. T.Total .. " </span>" .. font .. "<span style='font-family:crock;float:right; font-size: 22px;'>$" .. 0.00 .. "</span><br>" .. divider .. "<br><br>"
+        info  = "finish",
+        desc  = T.pressHereToFinish .. "<br><br>" ..
+                T.CurrentMoney .. " " .. LocalPlayer.state.Character.Money ..
+                "<br><br><br><br><br>" .. divider .. "<br>" ..
+                font .. "<span style='font-family:crock; float:left; font-size: 22px;'>" .. T.Total .. " </span>" ..
+                font .. "<span style='font-family:crock;float:right; font-size: 22px;'>" .. ctp .. "0.00</span><br>" ..
+                divider .. "<br><br>"
     }
 
     MenuData.Open('default', GetCurrentResourceName(), 'OpenBuyMenu' .. storeId .. category, {
-        title = storeConfig.storeName,
-        subtext = subMenuStyle:format(T.buyMenu),
-        align = Config.Align,
-        elements = menuElements,
-        lastmenu = "OpenSubMenu",
+        title      = storeConfig.storeName,
+        subtext    = subMenuStyle:format(T.buyMenu),
+        align      = Config.Align,
+        elements   = menuElements,
+        lastmenu   = "OpenSubMenu",
         itemHeight = "4vh",
-
-    }, function(data, menu)
+    },
+    function(data, menu)
         if (data.current == "backup") then
            return _G[data.trigger](storeId, category)
         end
 
         if data.current.action == "buy" then
-            local ItemName = data.current.info.itemName
-            local ItemLabel = data.current.info.itemLabel
-            local currencyType = data.current.info.currencyType
-            local buyPrice = data.current.info.buyprice * data.current.value
+            local info     = data.current.info
+            local qty      = tonumber(data.current.value) or 0
+            local unit     = info.buyprice
+            local itemName = info.itemName
+            local label    = GetLabel(itemName) or itemName
+            local total    = unit * qty
 
-            if not BuyTable[ItemName] then
-                BuyTable[ItemName] = {
-                    label = ItemLabel,
-                    currency = currencyType,
-                    price = data.current.info.buyprice,
-                    quantity = data.current.value,
-                    weapon = data.current.info.weapon,
-                    total = string.format("%.2f", buyPrice)
+            if not BuyTable[itemName] then
+                BuyTable[itemName] = {
+                    label    = label,
+                    currency = info.currencyType,
+                    price    = unit,
+                    quantity = qty,
+                    weapon   = info.weapon,
+                    total    = total
                 }
             end
 
-            if BuyTable[ItemName] then
-                BuyTable[ItemName].quantity = data.current.value
-                BuyTable[ItemName].price = buyPrice
-            end
+            BuyTable[itemName].quantity = qty
+            BuyTable[itemName].price    = unit
+            BuyTable[itemName].total    = unit * qty
 
-            for key, value in pairs(menu.data.elements) do
-                if value.index == ItemName then
-                    menu.setElement(key, "desc", data.current.info.desc .. "<br><br>" .. T.Price .. "$" .. data.current.info.buyprice .. "<br><br><br><br><br>" .. divider .. "<br>" .. font .. "<span style='font-family:crock; float:left; font-size: 22px;'>" .. T.Total .. " </span>" .. font .. "<span style='font-family:crock;float:right; font-size: 22px;'>$" .. string.format("%.2f", buyPrice) .. "</span><br>" .. divider .. "<br><br>")
+            for key, row in pairs(menu.data.elements) do
+                if row.index == itemName then
+                    menu.setElement(key, "desc",
+                        "<br>" .. T.Price .. " " .. ctp .. string.format("%.2f", unit) ..
+                        "<br><br><br><br><br>" .. divider .. "<br>" ..
+                        font .. "<span style='font-family:crock; float:left; font-size: 22px;'>" .. T.Total .. " </span>" ..
+                        font .. "<span style='font-family:crock;float:right; font-size: 22px;'>" .. ctp .. string.format("%.2f", total) .. "</span><br>" ..
+                        divider .. "<br><br>"
+                    )
                     menu.refresh()
                     break
                 end
             end
 
+            for key, row in pairs(menu.data.elements) do
+                if row.info == "finish" then
+                    local sum = 0
+                    for _, v in pairs(BuyTable) do sum = sum + (v.total or 0) end
+                    local money   = LocalPlayer.state.Character.Money
+                    local noMoney = money < sum and ("<br><br>" .. T.noMoney .. " " .. money) or ("<br><br>" .. T.CurrentMoney .. " " .. money)
 
-
-            for key, value in pairs(menu.data.elements) do
-                if value.info == "finish" then
-                    local total = 0
-                    for k, v in pairs(BuyTable) do
-                        total = total + v.total * v.quantity
-                    end
-                    local money = LocalPlayer.state.Character.Money
-                    local noMoney = money < total and "<br><br>" .. T.noMoney .. " " .. money or "<br><br>" .. T.CurrentMoney .. " " .. money
-
-                    menu.setElement(key, "label", T.totalToPay .. " <br> " .. labelStyle:format(ctp .. total))
-                    menu.setElement(key, "desc", T.pressHereToFinish .. noMoney .. "<br><br><br><br><br>" .. divider .. "<br>" .. font .. "<span style='font-family:crock; float:left; font-size: 22px;'>" .. T.Total .. "</span>" .. font .. "<span style='font-family:crock;float:right; font-size: 22px;'>$" .. string.format("%.2f", total) .. "</span><br>" .. divider .. "<br><br>")
+                    menu.setElement(key, "label", T.totalToPay .. " <br> " .. labelStyle:format(ctp .. string.format("%.2f", sum)))
+                    menu.setElement(key, "desc",
+                        T.pressHereToFinish .. noMoney ..
+                        "<br><br><br><br><br>" .. divider .. "<br>" ..
+                        font .. "<span style='font-family:crock; float:left; font-size: 22px;'>" .. T.Total .. " </span>" ..
+                        font .. "<span style='font-family:crock;float:right; font-size: 22px;'>" .. ctp .. string.format("%.2f", sum) .. "</span><br>" ..
+                        divider .. "<br><br>"
+                    )
                     menu.refresh()
                     break
                 end
@@ -648,48 +703,44 @@ function OpenBuyMenu(storeId, category)
         end
 
         if data.current.value == "finish" then
-            for key, value in pairs(BuyTable) do
-                if value.quantity <= 0 then
-                    BuyTable[key] = nil
+            for k, v in pairs(BuyTable) do
+                if (v.quantity or 0) <= 0 then
+                    BuyTable[k] = nil
                 end
             end
-
             if not next(BuyTable) then
                 return Core.NotifyObjective(T.notSelectedItem, 5000)
             end
 
-            local total = 0
-            for k, v in pairs(BuyTable) do
-                total = total + v.total * v.quantity
+            local sum = 0
+            for _, v in pairs(BuyTable) do sum = sum + (v.total or 0) end
+            if LocalPlayer.state.Character.Money < sum then
+                return Core.NotifyObjective(T.noMoney, 5000)
             end
 
-            local noMoney = LocalPlayer.state.Character.Money < total
-            if noMoney then return Core.NotifyObjective(T.noMoney, 5000) end
-
-            TriggerServerEvent("vorp_stores:Client:buyItems", BuyTable, storeId) -- sell it
+            TriggerServerEvent("vorp_stores:Client:buyItems", BuyTable, storeId)
             BuyTable = {}
             closeAll()
         end
-    end, function(data, menu)
-
-    end)
+    end,
+    function(data, menu) end)
 end
 
--- *  EVENTS * --
-
+-- ===========================
+-- ========= EVENTS ==========
+-- ===========================
 RegisterNetEvent("vorp_stores:RefreshStorePrices", function(packed)
-    local SellItems, BuyItems, Stores = msgpack.unpack(packed)
-    Config.SellItems = SellItems
-    Config.BuyItems = BuyItems
-    Config.Stores = Stores
+    local Stores = msgpack.unpack(packed)
+    Config.Stores = Stores or Config.Stores
+    -- update the LUT in case of new items
+    RefreshLabelLUT()
 end)
 
 AddEventHandler('onClientResourceStart', function(resourceName)
-    if (GetCurrentResourceName() ~= resourceName) then
-        return
-    end
+    if (GetCurrentResourceName() ~= resourceName) then return end
     Wait(1000)
     TriggerServerEvent("vorp_stores:GetRefreshedPrices")
+    RefreshLabelLUT()
 end)
 
 AddEventHandler('onResourceStop', function(resourceName)
@@ -710,7 +761,22 @@ AddEventHandler('onResourceStop', function(resourceName)
     end
 end)
 
+-- use this event client side to open a store from your scripts make sure locations match for security checks
+AddEventHandler("vorp_stores:Client:OpenShop", function(storeId)
+    local storeConfig = Config.Stores[storeId]
+    if not storeConfig then
+        return print("Store not found in vorp stores configs")
+    end
 
-
-
-
+    local distance = GetPlayerDistanceFromCoords(storeConfig.Blip.Pos)
+    if distance <= storeConfig.distanceOpenStore then
+        local canOpen = Core.Callback.TriggerAwait("vorp_stores:callback:canOpenStore", storeId)
+        if not canOpen then
+            return Core.NotifyObjective(T.StoreInUse, 5000)
+        end
+        __StoreInUse = storeId
+        OpenCategory(storeId)
+    else
+        print("this event was fired but player is not near the location to open store")
+    end
+end)
