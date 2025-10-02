@@ -5,7 +5,7 @@
 -- * THESE ARE JUST EXAMPLES YOU MUST CONFIGURE YOUR OWN STORES *--
 
 Config.SellItems = {
-    ValentinegunstoreSell = {
+    Valentinegunstore = {
         -- Melee
         {
             itemLabel    = "Tradders Knife",
