@@ -602,8 +602,8 @@ Config.Stores = {
         JobGrade = 0,
         -- * store categories allow which category to show in the store
         category = {
-            { label = "Weapons", Type = "weapons", desc = "Buy weapons",          img = "weapon" },
-            { label = "ammo",  Type = "ammo",  desc = "Buy Ammo", img = "ammorifleexpress" },
+            { label = "Weapons", Type = "weapons", desc = "Buy weapons", img = "weapon" },
+            { label = "ammo",    Type = "ammo",    desc = "Buy Ammo",    img = "ammorifleexpress" },
         },
         -- * store type allow which type of store to show in the store
         storeType = {
@@ -611,7 +611,7 @@ Config.Stores = {
             { label = "Sell", Type = "sell", desc = "Sell to store",  img = "butcher_table_production" },
         },
         StoreHoursAllowed = true,
-        RandomPrices = true,
+        RandomPrices = false,
         StoreOpen = 7,
         StoreClose = 21,
         DynamicStore = true,
@@ -634,7 +634,7 @@ Config.Stores = {
             Allowed = true,
             Name = "SaintD Gun Store",
             sprite = 1475879922,
-            Pos = vector3(2716.73,-1285.27,49.63),
+            Pos = vector3(2716.73, -1285.27, 49.63),
         },
         Npc = {
             Pos = vector4(2717.75, -1286.62, 49.64, 44.58),
@@ -649,8 +649,8 @@ Config.Stores = {
         JobGrade = 0,
         -- * store categories allow which category to show in the store
         category = {
-            { label = "Weapons", Type = "weapons", desc = "Buy weapons",          img = "weapon" },
-            { label = "ammo",  Type = "ammo",  desc = "Buy Ammo", img = "ammorifleexpress" },
+            { label = "Weapons", Type = "weapons", desc = "Buy weapons", img = "weapon" },
+            { label = "ammo",    Type = "ammo",    desc = "Buy Ammo",    img = "ammorifleexpress" },
         },
         -- * store type allow which type of store to show in the store
         storeType = {
@@ -658,7 +658,7 @@ Config.Stores = {
             { label = "Sell", Type = "sell", desc = "Sell to store",  img = "butcher_table_production" },
         },
         StoreHoursAllowed = true,
-        RandomPrices = true,
+        RandomPrices = false,
         StoreOpen = 7,
         StoreClose = 21,
         DynamicStore = true,
@@ -696,8 +696,8 @@ Config.Stores = {
         JobGrade = 0,
         -- * store categories allow which category to show in the store
         category = {
-            { label = "Weapons", Type = "weapons", desc = "Buy weapons",          img = "weapon" },
-            { label = "ammo",  Type = "ammo",  desc = "Buy Ammo", img = "ammorifleexpress" },
+            { label = "Weapons", Type = "weapons", desc = "Buy weapons", img = "weapon" },
+            { label = "ammo",    Type = "ammo",    desc = "Buy Ammo",    img = "ammorifleexpress" },
         },
         -- * store type allow which type of store to show in the store
         storeType = {
@@ -705,7 +705,7 @@ Config.Stores = {
             { label = "Sell", Type = "sell", desc = "Sell to store",  img = "butcher_table_production" },
         },
         StoreHoursAllowed = true,
-        RandomPrices = true,
+        RandomPrices = false,
         StoreOpen = 7,
         StoreClose = 21,
         DynamicStore = true,
@@ -743,8 +743,8 @@ Config.Stores = {
         JobGrade = 0,
         -- * store categories allow which category to show in the store
         category = {
-            { label = "Weapons", Type = "weapons", desc = "Buy weapons",          img = "weapon" },
-            { label = "ammo",  Type = "ammo",  desc = "Buy Ammo", img = "ammorifleexpress" },
+            { label = "Weapons", Type = "weapons", desc = "Buy weapons", img = "weapon" },
+            { label = "ammo",    Type = "ammo",    desc = "Buy Ammo",    img = "ammorifleexpress" },
         },
         -- * store type allow which type of store to show in the store
         storeType = {
@@ -752,7 +752,7 @@ Config.Stores = {
             { label = "Sell", Type = "sell", desc = "Sell to store",  img = "butcher_table_production" },
         },
         StoreHoursAllowed = true,
-        RandomPrices = true,
+        RandomPrices = false,
         StoreOpen = 7,
         StoreClose = 21,
         DynamicStore = true,
@@ -790,8 +790,8 @@ Config.Stores = {
         JobGrade = 0,
         -- * store categories allow which category to show in the store
         category = {
-            { label = "Weapons", Type = "weapons", desc = "Buy weapons",          img = "weapon" },
-            { label = "ammo",  Type = "ammo",  desc = "Buy Ammo", img = "ammorifleexpress" },
+            { label = "Weapons", Type = "weapons", desc = "Buy weapons", img = "weapon" },
+            { label = "ammo",    Type = "ammo",    desc = "Buy Ammo",    img = "ammorifleexpress" },
         },
         -- * store type allow which type of store to show in the store
         storeType = {
@@ -799,10 +799,10 @@ Config.Stores = {
             { label = "Sell", Type = "sell", desc = "Sell to store",  img = "butcher_table_production" },
         },
         StoreHoursAllowed = true,
-        RandomPrices = true,
+        RandomPrices = false,
         StoreOpen = 7,
         StoreClose = 21,
         DynamicStore = true,
     },
-    
+
 }
