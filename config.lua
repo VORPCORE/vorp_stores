@@ -852,4 +852,97 @@ Config.Stores = {
         DynamicStore = true,
     },
 
+    BlackwaterButcher = {
+        isDeactivated = false,     -- use this to activate stores or deactivate
+        useRandomLocation = false, -- if true it will pick a random location from the list bellow, good thing for a store that can move and not always in the same place and npc
+        possibleLocations = {
+            OpenMenu = {
+                -- vector3(-324.628, 803.9818, 116.88), -- valentine
+                -- add more it will pick a random location from the list
+            },
+            Npcs = {
+                -- vector4(-324.628, 803.9818, 116.88, -81.17), --valentine
+                -- add more it will pick a random location from the list
+            }
+
+        },
+        Blip = {
+            Allowed = true,
+            Name = "Blackwater Butcher",
+            sprite = -1406874050,
+            Pos = vector3(-752.7546, -1288.8815, 43.3985),
+        },
+        Npc = {
+            Pos = vector4(-752.7546, -1288.8815, 43.3985, 272.4592),
+            distanceRemoveNpc = 20.0,
+            Allowed = true,
+            Model = "u_m_m_sdtrapper_01",
+        },
+        storeName = "Blackwater Butcher",
+        PromptName = "Butcher",
+        distanceOpenStore = 3.0,
+        AllowedJobs = {},
+        JobGrade = 0,
+        -- * store categories allow which category to show in the store
+        category = {
+            { label = "Animal Parts", Type = "butcher", desc = "Sell animal parts", img = "butcher_table_production" },
+        },
+        -- * store type allow which type of store to show in the store
+        storeType = {
+            -- { label = "Buy",  Type = "buy",  desc = "Buy from butcher", img = "butcher_table_production" },
+            { label = "Sell", Type = "sell", desc = "Sell to butcher",  img = "butcher_table_production" },
+        },
+        StoreHoursAllowed = false,
+        RandomPrices = false,
+        StoreOpen = 7,
+        StoreClose = 21,
+        DynamicStore = true,
+    },
+
+    SaintDenisButcher = {
+        isDeactivated = false,     -- use this to activate stores or deactivate
+        useRandomLocation = false, -- if true it will pick a random location from the list bellow, good thing for a store that can move and not always in the same place and npc
+        possibleLocations = {
+            OpenMenu = {
+                -- vector3(-324.628, 803.9818, 116.88), -- valentine
+                -- add more it will pick a random location from the list
+            },
+            Npcs = {
+                -- vector4(-324.628, 803.9818, 116.88, -81.17), --valentine
+                -- add more it will pick a random location from the list
+            }
+
+        },
+        Blip = {
+            Allowed = true,
+            Name = "Saint Denis Butcher",
+            sprite = -1406874050,
+            Pos = vector3(2821.2917, -1327.5411, 46.5656),
+        },
+        Npc = {
+            Pos = vector4(2821.2917, -1327.5411, 46.5656, 132.4570),
+            distanceRemoveNpc = 20.0,
+            Allowed = true,
+            Model = "u_m_m_sdtrapper_01",
+        },
+        storeName = "Saint Denis Butcher",
+        PromptName = "Butcher",
+        distanceOpenStore = 3.0,
+        AllowedJobs = {},
+        JobGrade = 0,
+        -- * store categories allow which category to show in the store
+        category = {
+            { label = "Animal Parts", Type = "butcher", desc = "Sell animal parts", img = "butcher_table_production" },
+        },
+        -- * store type allow which type of store to show in the store
+        storeType = {
+            -- { label = "Buy",  Type = "buy",  desc = "Buy from butcher", img = "butcher_table_production" },
+            { label = "Sell", Type = "sell", desc = "Sell to butcher",  img = "butcher_table_production" },
+        },
+        StoreHoursAllowed = false,
+        RandomPrices = false,
+        StoreOpen = 7,
+        StoreClose = 21,
+        DynamicStore = true,
+    },
 }
