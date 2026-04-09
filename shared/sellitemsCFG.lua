@@ -179,7 +179,7 @@ local Butcher = {
     },
     {
         itemLabel = "Venison",
-        itemName = "vension",
+        itemName = "venison",
         currencyType = "cash",
         sellprice = 5,
         randomprice = math.random(4, 6),
